@@ -36,7 +36,6 @@ func Test_application_addIPToContext(t *testing.T) {
 		}
 		t.Log(ip)
 	})
-	var app application
 
 	for _, test := range tests {
 		// create the handler to test
@@ -62,7 +61,6 @@ func Test_application_addIPToContext(t *testing.T) {
 }
 
 func Test_application_ipFromContext(t *testing.T) {
-	var app application
 	var ctx = context.Background()
 	ctx = context.WithValue(ctx, contextUserKey, "127.0.0.1")
 	ip := app.ipFromContext(ctx)
