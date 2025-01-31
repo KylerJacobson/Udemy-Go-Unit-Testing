@@ -1,14 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"fmt"
+	"image"
+	"image/png"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path"
 	"strings"
+	"sync"
 	"testing"
+	"webapp/pkg/data"
 )
 
 func Test_application_handlers(t *testing.T) {
@@ -195,4 +204,111 @@ func Test_app_Login(t *testing.T) {
 		}
 
 	}
+}
+
+func Test_app_UploadFiles(t *testing.T) {
+	// set up pipes
+
+	pr, pw := io.Pipe()
+
+	// create a new writer, of time *io.Writer
+
+	writer := multipart.NewWriter(pw)
+
+	// create a waitgroup and add one 1 to it
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	// simulate uploading a file using a goroutine and a writer
+
+	go simulatePNGUpload("./testdata/img.png", writer, t, wg)
+
+	// read from the pipe which receives data
+
+	request := httptest.NewRequest("POST", "/", pr)
+
+	request.Header.Add("Content-Type", writer.FormDataContentType())
+	// call app.UploadFiles
+	uploadedFiles, err := app.UploadFiles(request, "./testdata/uploads/")
+	if err != nil {
+		t.Error(err)
+	}
+	// perform out tests
+	if _, err := os.Stat(fmt.Sprintf("./testdata/uploads/%s", uploadedFiles[0].OriginalFileName)); os.IsNotExist(err) {
+		t.Errorf("expected file to exist %s", err.Error())
+	}
+
+	_ = os.Remove(fmt.Sprintf("./testdata/uploads/%s", uploadedFiles[0].OriginalFileName))
+
+	wg.Wait()
+}
+
+func simulatePNGUpload(fileToUpload string, writer *multipart.Writer, t *testing.T, wg *sync.WaitGroup) {
+	defer writer.Close()
+	defer wg.Done()
+
+	// create the form data field
+	part, err := writer.CreateFormFile("file", path.Base(fileToUpload))
+	if err != nil {
+		t.Error(err)
+	}
+	f, err := os.Open(fileToUpload)
+	if err != nil {
+		t.Error(err)
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		t.Error("error decoding the image: ", err)
+	}
+	err = png.Encode(part, img)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func Test_app_UploadProfilePic(t *testing.T) {
+	uploadPath = "./testdata/uploads"
+	filePath := "./testdata/img.png"
+
+	fieldName := "file"
+	// create a new
+	body := new(bytes.Buffer)
+
+	mw := multipart.NewWriter(body)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w, err := mw.CreateFormFile(fieldName, filePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := io.Copy(w, file); err != nil {
+		t.Fatal(err)
+	}
+	mw.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/upload", body)
+	req = addContextAndSessionToRequest(req, app)
+	app.Session.Put(req.Context(), "user", data.User{ID: 1})
+	req.Header.Add("Content-Type", mw.FormDataContentType())
+
+	rr := httptest.NewRecorder()
+
+	handler := http.HandlerFunc(app.UploadProfilePic)
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("wrong status code; expected %d but got %d", http.StatusSeeOther, rr.Code)
+	}
+
+	_ = os.Remove("./testdata/uploads/img.png")
+
 }
