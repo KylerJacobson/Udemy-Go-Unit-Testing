@@ -16,22 +16,26 @@ func (app *application) authenticate(w http.ResponseWriter, r *http.Request) {
 	// read a JSON payload
 	err := app.readJSON(w, r, &creds)
 	if err != nil {
-		app.errorJSON(w, errors.New("unathorized"), http.StatusUnauthorized)
+		app.errorJSON(w, errors.New("unauthorized"), http.StatusUnauthorized)
+		return
 	}
 	// look up the user
 	user, err := app.DB.GetUserByEmail(creds.Username)
 	if err != nil {
-		app.errorJSON(w, errors.New("unathorized"), http.StatusUnauthorized)
+		app.errorJSON(w, errors.New("unauthorized"), http.StatusUnauthorized)
+		return
 	}
 	// check password
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(creds.Password))
 	if err != nil {
-		app.errorJSON(w, errors.New("unathorized"), http.StatusUnauthorized)
+		app.errorJSON(w, errors.New("unauthorized"), http.StatusUnauthorized)
+		return
 	}
 	// generate a JWT
 	tokenPairs, err := app.generateTokenPair(user)
 	if err != nil {
-		app.errorJSON(w, errors.New("unathorized"), http.StatusUnauthorized)
+		app.errorJSON(w, errors.New("unauthorized"), http.StatusUnauthorized)
+		return
 	}
 	// return the JWT
 
