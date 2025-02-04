@@ -10,8 +10,8 @@ import (
 	"webapp/pkg/data"
 )
 
-const jwtTokenExpiry = time.Minute * 15
-const jwtRefreshTokenExpiry = time.Hour * 24
+var jwtTokenExpiry = time.Minute * 15
+var jwtRefreshTokenExpiry = time.Hour * 24
 
 type TokenPairs struct {
 	Token        string `json:"access_token"`
